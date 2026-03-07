@@ -1,0 +1,12 @@
+// This folder holds all feature modules.
+// Each module gets its own sub-folder, e.g.:
+//
+//   modules/menu/     ← menu planner logic
+//   modules/logging/  ← meal logging logic
+//   modules/family/   ← family member management
+//   modules/insights/ ← nutrition analytics
+//
+// Each module typically contains:
+//   actions.js   ← server actions / API calls
+//   queries.js   ← React Query hooks (useQuery, useMutation)
+//   utils.js     ← module-specific helper functions

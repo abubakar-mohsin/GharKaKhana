@@ -1,0 +1,15 @@
+// This folder holds shared object shapes used across the app.
+// In a TypeScript project these would be .d.ts or type files.
+// In JavaScript, document your shapes here as JSDoc for IDE support.
+//
+// Example shapes this project uses:
+//
+//   @typedef {Object} User
+//   @property {string} id
+//   @property {string} name
+//   @property {string} email
+//   @property {'USER'|'ADMIN'} role
+//
+//   @typedef {Object} Session
+//   @property {User} user
+//   @property {Date}  expires
