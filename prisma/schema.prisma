@@ -1,5 +1,17 @@
-// This is your Prisma schema file
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
+// =============================================================================
+// GharKaKhana — Prisma Schema
+// =============================================================================
+// This file defines the entire database structure for GharKaKhana.
+// Every table, column, relation, and index is defined here.
+//
+// HOW THIS FILE WORKS:
+// - You edit this file to change the database structure
+// - You run "npx prisma db push" to apply changes to Supabase
+// - You run "npx prisma studio" to visually browse the database
+//
+// DATABASE: PostgreSQL hosted on Supabase
+// ORM: Prisma (like SQLAlchemy in Python)
+// =============================================================================
 
 generator client {
   provider = "prisma-client-js"
@@ -7,137 +19,94 @@ generator client {
 
 datasource db {
   provider  = "postgresql"
-  url       = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
+  url       = env("DATABASE_URL")   // transaction pooler — used by the running app
+  directUrl = env("DIRECT_URL")     // session pooler — used only for migrations
 }
 
-// ─── Enums ───────────────────────────────────────────────────────────────────
 
+// =============================================================================
+// SECTION 1 — ENUMS
+// =============================================================================
+// Enums are fixed lists of allowed values for a column.
+// Think of them like @Enumerated in Java or Python Enum classes.
+// If a value is not in the enum, the database will reject it.
+// =============================================================================
+
+
+// ─── User Enums ───────────────────────────────────────────────────────────────
+
+// App-level role — controls what a user can do across the entire system
+// Note: Family-level roles (admin/member within a family) are in FamilyRole below
 enum UserRole {
-  MEMBER
-  SUPER_ADMIN
+  MEMBER      // regular user — can log meals, join families, view insights
+  SUPER_ADMIN // developer/owner — can manage dishes and nutrition data
 }
 
+// User's dietary preference — used for personalized dish suggestions
 enum DietaryType {
-  VEG
-  NON_VEG
-  BOTH
+  VEG     // vegetarian only — no meat
+  NON_VEG // includes meat dishes
+  BOTH    // no restriction — show everything
 }
 
+// How spicy the user likes their food — affects dish recommendations
 enum SpiceTolerance {
   MILD
   MEDIUM
   HOT
 }
 
+// User's health goal — used for insight framing and suggestions
 enum HealthGoal {
-  BALANCED
-  WEIGHT_LOSS
-  HIGH_PROTEIN
+  BALANCED     // general balanced eating
+  WEIGHT_LOSS  // lower carb focus
+  HIGH_PROTEIN // protein-heavy focus
 }
 
-
-
-// ─── App Models ──────────────────────────────────────────────────────────────
-
-model User {
-  id            String         @id @default(uuid())
-  email         String         @unique
-  name          String?
-  passwordHash  String?                              // renamed from password
-  avatarUrl     String?                              // renamed from image
-  emailVerified DateTime?
-
-  role           UserRole       @default(MEMBER)
-  dietaryType    DietaryType    @default(BOTH)
-  spiceTolerance SpiceTolerance @default(MEDIUM)
-  healthGoal     HealthGoal     @default(BALANCED)
-  onboardedAt    DateTime?
-
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  deletedAt DateTime?
-
-  accounts Account[]
-  familiesCreated FamilyGroup[]  @relation("FamilyCreator")
-  familyMemberships FamilyMember[]
-  mealLogs MealLog[]
-  broadcastedMeals      FamilyMealLog[]             @relation("BroadcastBy")
-  familyMealStatuses    FamilyMealMemberStatus[]
-  notifications Notification[]
-}
 
 // ─── Family Enums ─────────────────────────────────────────────────────────────
 
-// Role within a specific family — separate from app-level UserRole
+// Role within a specific family group
+// This is SEPARATE from UserRole — a user can be ADMIN in one family and MEMBER in another
 enum FamilyRole {
-  MEMBER // can view feed, accept/reject broadcasts
-  ADMIN  // can broadcast meals, manage members, invite
+  MEMBER // can view family feed, accept or reject broadcasts
+  ADMIN  // can broadcast meals, invite members, manage the group
 }
 
-// ─── Family Models ────────────────────────────────────────────────────────────
-
-model FamilyGroup {
-  id         String   @id @default(uuid())
-  name       String                          // family display name e.g. "The Mahmood Family"
-  inviteCode String   @unique                // 8-char code others use to join e.g. "GHK-7X2P"
-  createdBy  String                          // userId of whoever created this group
-
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
-  deletedAt  DateTime?                       // soft delete — archived families stay in DB
-
-  // Relations
-  creator    User            @relation("FamilyCreator", fields: [createdBy], references: [id])
-  members    FamilyMember[]  // all memberships in this family
-  familyMealLogs FamilyMealLog[]
-}
-
-model FamilyMember {
-  id       String     @id @default(uuid())
-  familyId String                            // which family
-  userId   String                            // which user
-  role     FamilyRole @default(MEMBER)       // their role in THIS family
-
-  joinedAt  DateTime  @default(now())        // when they joined
-
-  // Relations
-  family   FamilyGroup @relation(fields: [familyId], references: [id], onDelete: Cascade)
-  user     User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  // One user can only appear once per family — no duplicates
-  @@unique([familyId, userId])
-
-  // Index for fast lookup — "find all families this user is in"
-  @@index([userId])
-}
 
 // ─── Menu Catalog Enums ───────────────────────────────────────────────────────
 
+// What is the base carbohydrate of this dish
+// This is the most important filter — the core of South Asian meal planning
 enum BaseType {
-  RICE_BASED
-  ROTI_BASED
-  STANDALONE
-  BOTH
+  RICE_BASED // e.g. Biryani, Pulao, Daal Chawal
+  ROTI_BASED // e.g. Karahi, Saag, Qeema
+  STANDALONE // e.g. Haleem, Nihari, Samosa — can be eaten alone
+  BOTH       // e.g. Daal — commonly eaten with both roti and rice
 }
 
+// Dietary classification of a dish
+// Separate from user's DietaryType — this describes the dish, not the user
 enum DishDietaryType {
-  VEG
-  NON_VEG
-  VEGAN
+  VEG     // no meat
+  NON_VEG // contains meat
+  VEGAN   // no animal products at all
 }
 
+// What protein source does this dish contain
+// Used for protein diversity tracking in insights
 enum ProteinType {
   CHICKEN
   MUTTON
   BEEF
   FISH
-  LENTIL
-  PANEER
+  LENTIL  // daal — plant protein
+  PANEER  // Indian cottage cheese
   EGG
-  NONE
+  NONE    // no significant protein source e.g. plain rice, naan
 }
 
+// How spicy is this dish
 enum SpiceLevel {
   MILD
   MEDIUM
@@ -145,6 +114,8 @@ enum SpiceLevel {
   EXTRA_HOT
 }
 
+// What meal times is this dish suitable for
+// Used as an array on Dish — one dish can be suitable for multiple meal times
 enum MealTime {
   BREAKFAST
   LUNCH
@@ -152,222 +123,104 @@ enum MealTime {
   SNACK
 }
 
-// ─── Menu Catalog Models ──────────────────────────────────────────────────────
 
-model Dish {
-  id              String          @id @default(uuid())
-  name            String
-  nameUrdu        String?
-  description     String?
-  imageUrl        String?
+// ─── Meal Logging Enums ───────────────────────────────────────────────────────
 
-  baseType        BaseType        @default(STANDALONE)
-  dietaryType     DishDietaryType @default(NON_VEG)
-  proteinType     ProteinType     @default(NONE)
-  spiceLevel      SpiceLevel      @default(MEDIUM)
-  region          String?
-
-  isQuick         Boolean         @default(false)
-  isHealthy       Boolean         @default(false)
-  isFestive       Boolean         @default(false)
-
-  prepTimeMinutes Int?
-  mealTimes       MealTime[]
-
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  deletedAt DateTime?
-
-  // Relations
-  tags      DishTag[]
-  nutrition DishNutrition?
-  recipe    DishRecipe?
-  mealLogs MealLog[]
-  familyMealLogs FamilyMealLog[]
-
-  // Indexes for fast filter queries
-  @@index([baseType, dietaryType, spiceLevel])
-  @@index([isQuick, isHealthy])
-  @@index([region])
-}
-
-model DishTag {
-  id     String @id @default(uuid())
-  dishId String
-  tag    String
-
-  dish Dish @relation(fields: [dishId], references: [id], onDelete: Cascade)
-
-  @@unique([dishId, tag])
-  @@index([tag])
-}
-
-model DishNutrition {
-  id     String @id @default(uuid())
-  dishId String @unique
-
-  servingDescription String?
-  calories           Float?
-  protein            Float?
-  carbohydrates      Float?
-  fat                Float?
-  fiber              Float?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  dish Dish @relation(fields: [dishId], references: [id], onDelete: Cascade)
-}
-
-model DishRecipe {
-  id     String @id @default(uuid())
-  dishId String @unique
-
-  ingredients Json
-  steps       Json
-  servings    Int  @default(4)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  dish Dish @relation(fields: [dishId], references: [id], onDelete: Cascade)
-}
-
-
-
-// ─── Meal Logging Models ──────────────────────────────────────────────────────
-
-
+// How was this meal log created
+// Used to distinguish personal logs from family broadcast logs in insights
 enum MealLogSource {
-  PERSONAL  // user logged this themselves
-  FAMILY    // came from a family broadcast
-}
-
-
-model MealLog {
-  id             String   @id @default(uuid())
-  userId         String                          // who ate this
-  dishId         String?                         // nullable — null if custom meal
-  customMealName String?                         // filled if dishId is null
-
-  logDate  DateTime                              // the date this meal was eaten
-  mealTime MealTime                              // BREAKFAST, LUNCH, DINNER, SNACK
-  servings Float    @default(1.0)               // how many servings
-  notes    String?                               // optional free text
-
-  source MealLogSource @default(PERSONAL)        // personal or from family broadcast
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // Relations
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  dish Dish? @relation(fields: [dishId], references: [id], onDelete: SetNull)
-  familyMealStatus FamilyMealMemberStatus?
-
-  // Fast lookup — find all logs for a user on a specific date
-  @@index([userId, logDate])
-  @@index([logDate])
+  PERSONAL // user logged this themselves independently
+  FAMILY   // automatically created when user accepted a family broadcast
 }
 
 
 // ─── Family Broadcast Enums ───────────────────────────────────────────────────
 
+// The state of a family member's response to a broadcast meal
+// CRITICAL: Valid transitions are strictly enforced in the API layer:
+//   PENDING     → ACCEPTED     (member taps Accept)
+//   PENDING     → REJECTED     (member taps Reject)
+//   ACCEPTED    → OVERRIDDEN   (member logs a different meal after accepting)
+//   PENDING     → UNCONFIRMED  (24 hours pass — set by Vercel Cron job only)
+//   All other transitions are invalid and must return a 400 error
 enum MemberStatus {
-  PENDING
-  ACCEPTED
-  REJECTED
-  OVERRIDDEN
-  UNCONFIRMED
+  PENDING     // broadcast received, member has not responded yet
+  ACCEPTED    // member confirmed they ate this meal
+  REJECTED    // member said they did not eat this meal
+  OVERRIDDEN  // member accepted but later logged a different meal
+  UNCONFIRMED // 24 hours passed with no response — excluded from personal insights
 }
 
-// ─── Family Broadcast Models ──────────────────────────────────────────────────
 
-model FamilyMealLog {
-  id         String   @id @default(uuid())
-  familyId   String                          // which family this broadcast is for
-  dishId     String                          // which dish was broadcast
-  broadcastBy String                         // userId of the admin who broadcast it
-  logDate    DateTime                        // the date of this meal
-  mealTime   MealTime                        // BREAKFAST, LUNCH, DINNER, SNACK
-  notes      String?                         // optional message from admin
+// ─── Notification Enums ───────────────────────────────────────────────────────
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // Relations
-  family    FamilyGroup              @relation(fields: [familyId], references: [id], onDelete: Cascade)
-  dish      Dish                     @relation(fields: [dishId], references: [id], onDelete: Restrict)
-  broadcastUser User                 @relation("BroadcastBy", fields: [broadcastBy], references: [id])
-  memberStatuses FamilyMealMemberStatus[]
-
-  // Fast lookup — find all broadcasts for a family on a date
-  @@index([familyId, logDate])
-}
-
-model FamilyMealMemberStatus {
-  id              String       @id @default(uuid())
-  familyMealLogId String                            // which broadcast this belongs to
-  userId          String                            // which member
-  status          MemberStatus @default(PENDING)
-
-  // Filled when member accepts — links to their personal MealLog
-  mealLogId       String?      @unique              // nullable until accepted
-  servingsOverride Float?                           // if member ate different amount
-
-  decidedAt DateTime?                               // when they responded
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // Relations
-  familyMealLog FamilyMealLog @relation(fields: [familyMealLogId], references: [id], onDelete: Cascade)
-  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  mealLog       MealLog?      @relation(fields: [mealLogId], references: [id], onDelete: SetNull)
-
-  // One status row per member per broadcast — no duplicates
-  @@unique([familyMealLogId, userId])
-  @@index([userId, status])
-}
-
-// ─── Notification Models ──────────────────────────────────────────────────────
-
-
+// What triggered this notification
+// Used by the frontend to decide how to display and link the notification
 enum NotificationType {
-  FAMILY_MEAL_BROADCAST    // admin sent a family meal
-  MEMBER_RESPONDED         // member accepted or rejected
-  MEMBER_JOINED            // someone joined the family
-  MEAL_UNCONFIRMED         // 24h passed, meal marked unconfirmed
+  FAMILY_MEAL_BROADCAST // admin broadcast a family meal — notify all members
+  MEMBER_RESPONDED      // a member accepted or rejected — notify the admin
+  MEMBER_JOINED         // someone joined the family — notify the admin
+  MEAL_UNCONFIRMED      // a meal was auto-marked unconfirmed — notify the member
 }
 
 
-model Notification {
-  id          String           @id @default(uuid())
-  userId      String                                  // who receives this notification
-  type        NotificationType                        // what kind of notification
-  referenceId String?                                 // ID of related record
-                                                      // e.g. familyMealLogId or familyId
-  message     String                                  // human readable message
-  readAt      DateTime?                               // null until user reads it
+// =============================================================================
+// SECTION 2 — DOMAIN 1: USERS & AUTHENTICATION
+// =============================================================================
+// Handles all user accounts and NextAuth session management.
+//
+// Tables:
+//   User              — the main user account
+//   Account           — NextAuth OAuth connections (Google etc.) — DO NOT MODIFY
+//   VerificationToken — NextAuth email verification tokens — DO NOT MODIFY
+// =============================================================================
 
-  createdAt DateTime @default(now())
+model User {
+  id            String    @id @default(uuid()) // UUID is better than auto-increment for distributed systems
+  email         String    @unique              // login identifier — must be unique
+  name          String?                        // nullable — Google OAuth may not always provide name
+  passwordHash  String?                        // null for Google OAuth users — hashed with bcrypt
+  avatarUrl     String?                        // profile picture — Cloudinary URL or Google avatar
+  emailVerified DateTime? // null until email is verified — NextAuth stores the timestamp not just true/false
 
-  // Relations
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // App-level role — determines system-wide permissions
+  role UserRole @default(MEMBER)
 
-  // Fast lookup — find all unread notifications for a user
-  @@index([userId, readAt])
+  // Onboarding preferences — collected during the 3-step onboarding flow
+  // These are used to personalize dish suggestions and insight framing
+  dietaryType    DietaryType    @default(BOTH)
+  spiceTolerance SpiceTolerance @default(MEDIUM)
+  healthGoal     HealthGoal     @default(BALANCED)
+  onboardedAt    DateTime?      // null until they complete the onboarding flow
+
+  // Audit fields — present on every major table
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt  // Prisma automatically updates this on every save
+  deletedAt DateTime?             // soft delete — we never hard delete users
+                                  // historical meal logs must remain intact
+
+  // ─── Relations ──────────────────────────────────────────────────────────────
+  // These fields do NOT create columns — they are navigation shortcuts in code
+  // e.g. user.mealLogs gives you all meal logs without writing a separate query
+
+  accounts          Account[]                // NextAuth OAuth accounts linked to this user
+  familiesCreated   FamilyGroup[]            @relation("FamilyCreator") // families this user created
+  familyMemberships FamilyMember[]           // all family memberships (can be in multiple families)
+  mealLogs          MealLog[]                // all personal meal logs
+  broadcastedMeals  FamilyMealLog[]          @relation("BroadcastBy") // meals broadcast as admin
+  familyMealStatuses FamilyMealMemberStatus[] // this user's responses to family broadcasts
+  notifications     Notification[]           // all notifications for this user
 }
 
-
-// ─── NextAuth Required Models (do not modify) ────────────────────────────────
-
+// NextAuth required — stores OAuth provider connections (Google, etc.)
+// When a user logs in with Google, NextAuth saves the connection details here
+// DO NOT MODIFY THIS MODEL — NextAuth manages it internally
 model Account {
   id                String  @id @default(cuid())
   userId            String
   type              String
-  provider          String
-  providerAccountId String
+  provider          String  // e.g. "google"
+  providerAccountId String  // the user's ID on the provider's system
   refresh_token     String? @db.Text
   access_token      String? @db.Text
   expires_at        Int?
@@ -381,10 +234,349 @@ model Account {
   @@unique([provider, providerAccountId])
 }
 
+// NextAuth required — stores temporary email verification tokens
+// When you send a "verify your email" link, the token lives here until clicked
+// DO NOT MODIFY THIS MODEL — NextAuth manages it internally
 model VerificationToken {
   identifier String
   token      String   @unique
   expires    DateTime
 
   @@unique([identifier, token])
+}
+
+
+// =============================================================================
+// SECTION 3 — DOMAIN 2: FAMILY GROUPS
+// =============================================================================
+// Handles family group creation, membership, and roles.
+//
+// Tables:
+//   FamilyGroup  — the group itself (name, invite code, creator)
+//   FamilyMember — junction table linking users to families with roles
+//
+// Why two tables?
+//   User ↔ FamilyGroup is a many-to-many relationship.
+//   One user can be in many families. One family can have many users.
+//   In any database, many-to-many always needs a junction table in the middle.
+//   FamilyMember IS that junction table — but it also carries extra data
+//   (the member's role and when they joined).
+// =============================================================================
+
+model FamilyGroup {
+  id         String    @id @default(uuid())
+  name       String    // display name e.g. "The Mahmood Family"
+  inviteCode String    @unique // short code others use to join e.g. "GHK-7X2P"
+                               // generated on creation, must be unique across all families
+  createdBy  String    // userId of whoever created this group
+                       // this user is automatically given ADMIN role in FamilyMember
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime? // soft delete — archived families stay in DB
+                      // their broadcast history must remain intact for members
+
+  // ─── Relations ──────────────────────────────────────────────────────────────
+  creator        User            @relation("FamilyCreator", fields: [createdBy], references: [id])
+  members        FamilyMember[]  // all memberships in this family
+  familyMealLogs FamilyMealLog[] // all meal broadcasts sent to this family
+}
+
+model FamilyMember {
+  id       String     @id @default(uuid())
+  familyId String     // which family group
+  userId   String     // which user
+  role     FamilyRole @default(MEMBER) // their role in THIS specific family
+
+  joinedAt DateTime @default(now()) // when they joined — used for admin promotion logic
+                                    // if admin leaves, oldest member (lowest joinedAt) becomes admin
+
+  // ─── Relations ──────────────────────────────────────────────────────────────
+  family FamilyGroup @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  user   User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([familyId, userId]) // one user can only appear once per family — prevents duplicate memberships
+  @@index([userId])            // fast lookup: "find all families this user belongs to"
+}
+
+
+// =============================================================================
+// SECTION 4 — DOMAIN 3 & 4: MENU CATALOG & NUTRITION DATA
+// =============================================================================
+// The dish database — the core product differentiator.
+// Handles all South Asian dishes with their filters, nutrition, and recipes.
+//
+// Tables:
+//   Dish          — main dish record with all filter columns
+//   DishTag       — flexible tags like "High Protein", "Diabetes Friendly"
+//   DishNutrition — per-serving nutritional values (optional, filled gradually)
+//   DishRecipe    — ingredients and cooking steps stored as JSON
+//
+// Why separate tables instead of one big Dish table?
+//   Dish         — always exists, core identity
+//   DishNutrition — optional — not all dishes have nutrition data at launch
+//   DishRecipe    — optional — flexible JSON, no need to index ingredients
+//   DishTag       — many-to-many — one dish can have many tags
+// =============================================================================
+
+model Dish {
+  id          String          @id @default(uuid())
+  name        String          // English name e.g. "Chicken Karahi"
+  nameUrdu    String?         // Urdu name e.g. "چکن کڑاہی" — for multilingual support
+  description String?         // short description of the dish
+  imageUrl    String?         // Cloudinary CDN URL — auto-optimized for mobile
+
+  // ─── Filter Columns ─────────────────────────────────────────────────────────
+  // These are the columns users filter by in the menu explorer
+  // All are indexed below for fast query performance
+  baseType    BaseType        @default(STANDALONE)
+  dietaryType DishDietaryType @default(NON_VEG)
+  proteinType ProteinType     @default(NONE)
+  spiceLevel  SpiceLevel      @default(MEDIUM)
+  region      String?         // "Punjab", "Sindh", "KPK", "Bengal", "Hyderabad" etc.
+
+  // ─── Quick Filter Flags ──────────────────────────────────────────────────────
+  // Boolean flags for fast single-column filtering
+  isQuick   Boolean @default(false) // prep time under 30 minutes
+  isHealthy Boolean @default(false) // manually marked as a healthy option
+  isFestive Boolean @default(false) // special occasion dish e.g. Eid, weddings
+
+  prepTimeMinutes Int?       // actual prep time — used to compute isQuick
+  mealTimes       MealTime[] // array — a dish can be suitable for multiple meal times
+                             // e.g. Paratha is both BREAKFAST and LUNCH
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime? // soft delete — never hard delete dishes
+                      // historical meal logs reference dishId — hard delete breaks history
+                      // use onDelete: Restrict on FamilyMealLog to enforce this
+
+  // ─── Relations ──────────────────────────────────────────────────────────────
+  tags           DishTag[]
+  nutrition      DishNutrition?  // optional one-to-one
+  recipe         DishRecipe?     // optional one-to-one
+  mealLogs       MealLog[]       // all personal logs that reference this dish
+  familyMealLogs FamilyMealLog[] // all family broadcasts that used this dish
+
+  // ─── Indexes ────────────────────────────────────────────────────────────────
+  // Composite indexes for the most common filter combinations
+  // Without indexes, every filter query scans the entire Dish table
+  @@index([baseType, dietaryType, spiceLevel]) // most common triple-filter combo
+  @@index([isQuick, isHealthy])                // health and speed filters
+  @@index([region])                            // regional filtering
+}
+
+// Flexible tags for dishes — "High Protein", "Diabetes Friendly", "Low Carb" etc.
+// Separate from filter columns because tags are open-ended and can grow over time
+model DishTag {
+  id     String @id @default(uuid())
+  dishId String
+  tag    String // free text tag value
+
+  dish Dish @relation(fields: [dishId], references: [id], onDelete: Cascade)
+
+  @@unique([dishId, tag]) // same tag cannot appear twice on the same dish
+  @@index([tag])          // fast lookup: "find all dishes with tag = High Protein"
+}
+
+// Nutritional values per serving — optional, filled in gradually over time
+// Separated from Dish to keep Dish table lean and allow nullable nutrition
+// MVP note: show "Nutrition coming soon" label if this record doesn't exist
+model DishNutrition {
+  id     String @id @default(uuid())
+  dishId String @unique // one-to-one — each dish has at most one nutrition record
+
+  servingDescription String? // what "1 serving" means e.g. "1 bowl (250g)", "2 rotis"
+  calories           Float?  // kcal per serving
+  protein            Float?  // grams per serving
+  carbohydrates      Float?  // grams per serving
+  fat                Float?  // grams per serving
+  fiber              Float?  // grams per serving
+
+  // Note: all nutrition values are approximate estimates
+  // A disclaimer must be shown in the UI wherever these values are displayed
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  dish Dish @relation(fields: [dishId], references: [id], onDelete: Cascade)
+}
+
+// Recipe instructions stored as flexible JSON
+// Why JSON instead of separate tables?
+//   Recipe structure varies too much between dishes to normalize into tables.
+//   You never need to filter dishes BY ingredient — so no need to index them.
+//   JSON keeps it simple and fast for reading.
+//
+// ingredients JSON shape: [{ "name": "Chicken", "amount": "1kg" }, ...]
+// steps JSON shape:       [{ "step": 1, "instruction": "Heat oil in karahi" }, ...]
+model DishRecipe {
+  id     String @id @default(uuid())
+  dishId String @unique // one-to-one — each dish has at most one recipe
+
+  ingredients Json     // array of ingredient objects
+  steps       Json     // array of step objects
+  servings    Int      @default(4) // default recipe yield — used for portion scaling
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  dish Dish @relation(fields: [dishId], references: [id], onDelete: Cascade)
+}
+
+
+// =============================================================================
+// SECTION 5 — DOMAIN 5: MEAL LOGGING
+// =============================================================================
+// Records every meal that every user actually ate.
+// This is the core data that feeds the insights engine.
+//
+// Tables:
+//   MealLog — one row per meal eaten by one user on one occasion
+//
+// Key rules enforced in the API layer (not schema):
+//   - If dishId is null → customMealName must have a value
+//   - If dishId has a value → customMealName should be null
+//   - Custom meals are excluded from nutrition insights
+//   - UNCONFIRMED family meals are excluded from all personal insights
+//   - logDate should use the user's LOCAL date, not UTC server date
+// =============================================================================
+
+model MealLog {
+  id             String  @id @default(uuid())
+  userId         String  // who ate this meal
+  dishId         String? // nullable — null when logging a custom meal not in the database
+  customMealName String? // free text name — only filled when dishId is null
+                         // e.g. "Office canteen biryani", "Mama's special halwa"
+
+  logDate  DateTime      // the date this meal was eaten
+                         // IMPORTANT: use user's local date, not UTC server time
+  mealTime MealTime      // BREAKFAST, LUNCH, DINNER, or SNACK
+  servings Float         @default(1.0) // decimal servings e.g. 1.0, 1.5, 2.0
+  notes    String?       // optional personal note
+
+  source MealLogSource @default(PERSONAL) // PERSONAL = logged by user independently
+                                          // FAMILY = auto-created when user accepted a broadcast
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // ─── Relations ──────────────────────────────────────────────────────────────
+  user             User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  dish             Dish?                   @relation(fields: [dishId], references: [id], onDelete: SetNull)
+  // SetNull on dish delete: if a dish is soft-deleted but log still exists,
+  // set dishId to null rather than deleting the log
+  familyMealStatus FamilyMealMemberStatus? // link back to broadcast if source = FAMILY
+
+  @@index([userId, logDate]) // most common query: "get all logs for user X on date Y"
+  @@index([logDate])         // aggregate queries: "get all logs on date Y across all users"
+}
+
+
+// =============================================================================
+// SECTION 6 — DOMAIN 6: FAMILY BROADCAST SYSTEM
+// =============================================================================
+// The core differentiator of GharKaKhana.
+// Handles the admin broadcasting a meal to the family and members responding.
+//
+// Tables:
+//   FamilyMealLog            — the broadcast itself (one per meal per day)
+//   FamilyMealMemberStatus   — each member's response (one per member per broadcast)
+//
+// Broadcast flow:
+//   1. Admin logs a dish as family meal → FamilyMealLog created
+//   2. For each family member → FamilyMealMemberStatus row created (status = PENDING)
+//   3. Member accepts → status = ACCEPTED → MealLog auto-created for them
+//   4. Member rejects → status = REJECTED → no MealLog created
+//   5. Member logs different meal → status = OVERRIDDEN → new MealLog created
+//   6. No response after 24h → Vercel Cron sets status = UNCONFIRMED
+//      → UNCONFIRMED meals are excluded from personal insights
+// =============================================================================
+
+model FamilyMealLog {
+  id          String   @id @default(uuid())
+  familyId    String   // which family this broadcast was sent to
+  dishId      String   // which dish was broadcast — NOT nullable
+                       // you cannot broadcast a custom meal, only catalog dishes
+  broadcastBy String   // userId of the admin who created this broadcast
+
+  logDate  DateTime // the date this family meal is for
+  mealTime MealTime // BREAKFAST, LUNCH, DINNER, or SNACK
+  notes    String?  // optional message from admin to family e.g. "Dinner at 8pm"
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // ─── Relations ──────────────────────────────────────────────────────────────
+  family        FamilyGroup              @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  dish          Dish                     @relation(fields: [dishId], references: [id], onDelete: Restrict)
+  // Restrict on dish delete: BLOCK deletion of a dish that has been broadcast
+  // The correct way to "remove" a dish is soft delete (set deletedAt)
+  // This protects family meal history from being corrupted
+  broadcastUser User                     @relation("BroadcastBy", fields: [broadcastBy], references: [id])
+  memberStatuses FamilyMealMemberStatus[] // one status row per family member
+
+  @@index([familyId, logDate]) // fast lookup: "get all broadcasts for family X on date Y"
+}
+
+model FamilyMealMemberStatus {
+  id              String       @id @default(uuid())
+  familyMealLogId String       // which broadcast this status belongs to
+  userId          String       // which family member this status is for
+  status          MemberStatus @default(PENDING)
+
+  mealLogId        String? @unique // links to the MealLog created on ACCEPTED
+                                   // @unique ensures one MealLog cannot be linked to two broadcasts
+                                   // null until member accepts
+  servingsOverride Float?          // if member ate a different quantity than the broadcast default
+  decidedAt        DateTime?       // timestamp of when member responded — null if still PENDING
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // ─── Relations ──────────────────────────────────────────────────────────────
+  familyMealLog FamilyMealLog @relation(fields: [familyMealLogId], references: [id], onDelete: Cascade)
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mealLog       MealLog?      @relation(fields: [mealLogId], references: [id], onDelete: SetNull)
+
+  @@unique([familyMealLogId, userId]) // one status row per member per broadcast — no duplicates
+  @@index([userId, status])           // fast lookup: "get all PENDING statuses for user X"
+}
+
+
+// =============================================================================
+// SECTION 7 — DOMAIN 7: NOTIFICATIONS
+// =============================================================================
+// In-app notification feed — Phase 1 only (no push notifications yet).
+// Push notifications via FCM are planned for Phase 3.
+//
+// Tables:
+//   Notification — one row per notification per user
+//
+// Design decision — why use referenceId (String) instead of typed foreign keys?
+//   A notification can reference many different record types.
+//   Using referenceId + type is cleaner than having 5 nullable foreign key columns.
+//   The API uses the 'type' field to know which table to look up referenceId in.
+// =============================================================================
+
+model Notification {
+  id          String           @id @default(uuid())
+  userId      String           // who receives this notification
+  type        NotificationType // what triggered this notification
+  referenceId String?          // ID of the related record
+                               // FAMILY_MEAL_BROADCAST → familyMealLogId
+                               // MEMBER_RESPONDED      → familyMealMemberStatusId
+                               // MEMBER_JOINED         → familyMemberId
+                               // MEAL_UNCONFIRMED      → familyMealMemberStatusId
+  message     String           // human-readable notification text
+                               // e.g. "Ammi logged Chicken Karahi for dinner"
+  readAt      DateTime?        // null = unread, timestamp = when user read it
+
+  createdAt DateTime @default(now()) // no updatedAt — notifications are never edited
+
+  // ─── Relations ──────────────────────────────────────────────────────────────
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt]) // fast lookup: "get all unread notifications for user X"
+                            // readAt = null means unread — index makes this instant
 }
