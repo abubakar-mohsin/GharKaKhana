@@ -59,6 +59,7 @@ model User {
   accounts Account[]
   familiesCreated FamilyGroup[]  @relation("FamilyCreator")
   familyMemberships FamilyMember[]
+  mealLogs MealLog[]
 }
 
 // ─── Family Enums ─────────────────────────────────────────────────────────────
@@ -175,6 +176,7 @@ model Dish {
   tags      DishTag[]
   nutrition DishNutrition?
   recipe    DishRecipe?
+  mealLogs MealLog[]
 
   // Indexes for fast filter queries
   @@index([baseType, dietaryType, spiceLevel])
@@ -224,6 +226,41 @@ model DishRecipe {
   dish Dish @relation(fields: [dishId], references: [id], onDelete: Cascade)
 }
 
+
+
+// ─── Meal Logging Models ──────────────────────────────────────────────────────
+
+
+enum MealLogSource {
+  PERSONAL  // user logged this themselves
+  FAMILY    // came from a family broadcast
+}
+
+
+model MealLog {
+  id             String   @id @default(uuid())
+  userId         String                          // who ate this
+  dishId         String?                         // nullable — null if custom meal
+  customMealName String?                         // filled if dishId is null
+
+  logDate  DateTime                              // the date this meal was eaten
+  mealTime MealTime                              // BREAKFAST, LUNCH, DINNER, SNACK
+  servings Float    @default(1.0)               // how many servings
+  notes    String?                               // optional free text
+
+  source MealLogSource @default(PERSONAL)        // personal or from family broadcast
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  dish Dish? @relation(fields: [dishId], references: [id], onDelete: SetNull)
+
+  // Fast lookup — find all logs for a user on a specific date
+  @@index([userId, logDate])
+  @@index([logDate])
+}
 
 
 // ─── NextAuth Required Models (do not modify) ────────────────────────────────
