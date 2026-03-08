@@ -105,6 +105,127 @@ model FamilyMember {
   @@index([userId])
 }
 
+// ─── Menu Catalog Enums ───────────────────────────────────────────────────────
+
+enum BaseType {
+  RICE_BASED
+  ROTI_BASED
+  STANDALONE
+  BOTH
+}
+
+enum DishDietaryType {
+  VEG
+  NON_VEG
+  VEGAN
+}
+
+enum ProteinType {
+  CHICKEN
+  MUTTON
+  BEEF
+  FISH
+  LENTIL
+  PANEER
+  EGG
+  NONE
+}
+
+enum SpiceLevel {
+  MILD
+  MEDIUM
+  HOT
+  EXTRA_HOT
+}
+
+enum MealTime {
+  BREAKFAST
+  LUNCH
+  DINNER
+  SNACK
+}
+
+// ─── Menu Catalog Models ──────────────────────────────────────────────────────
+
+model Dish {
+  id              String          @id @default(uuid())
+  name            String
+  nameUrdu        String?
+  description     String?
+  imageUrl        String?
+
+  baseType        BaseType        @default(STANDALONE)
+  dietaryType     DishDietaryType @default(NON_VEG)
+  proteinType     ProteinType     @default(NONE)
+  spiceLevel      SpiceLevel      @default(MEDIUM)
+  region          String?
+
+  isQuick         Boolean         @default(false)
+  isHealthy       Boolean         @default(false)
+  isFestive       Boolean         @default(false)
+
+  prepTimeMinutes Int?
+  mealTimes       MealTime[]
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  // Relations
+  tags      DishTag[]
+  nutrition DishNutrition?
+  recipe    DishRecipe?
+
+  // Indexes for fast filter queries
+  @@index([baseType, dietaryType, spiceLevel])
+  @@index([isQuick, isHealthy])
+  @@index([region])
+}
+
+model DishTag {
+  id     String @id @default(uuid())
+  dishId String
+  tag    String
+
+  dish Dish @relation(fields: [dishId], references: [id], onDelete: Cascade)
+
+  @@unique([dishId, tag])
+  @@index([tag])
+}
+
+model DishNutrition {
+  id     String @id @default(uuid())
+  dishId String @unique
+
+  servingDescription String?
+  calories           Float?
+  protein            Float?
+  carbohydrates      Float?
+  fat                Float?
+  fiber              Float?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  dish Dish @relation(fields: [dishId], references: [id], onDelete: Cascade)
+}
+
+model DishRecipe {
+  id     String @id @default(uuid())
+  dishId String @unique
+
+  ingredients Json
+  steps       Json
+  servings    Int  @default(4)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  dish Dish @relation(fields: [dishId], references: [id], onDelete: Cascade)
+}
+
+
+
 // ─── NextAuth Required Models (do not modify) ────────────────────────────────
 
 model Account {
