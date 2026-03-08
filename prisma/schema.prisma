@@ -321,7 +321,7 @@ model FamilyMember {
 
 model Dish {
   id          String          @id @default(uuid())
-  name        String          // English name e.g. "Chicken Karahi"
+  name        String          @unique   // English name e.g. "Chicken Karahi"
   nameUrdu    String?         // Urdu name e.g. "چکن کڑاہی" — for multilingual support
   description String?         // short description of the dish
   imageUrl    String?         // Cloudinary CDN URL — auto-optimized for mobile
@@ -361,8 +361,8 @@ model Dish {
   // ─── Indexes ────────────────────────────────────────────────────────────────
   // Composite indexes for the most common filter combinations
   // Without indexes, every filter query scans the entire Dish table
-  @@index([baseType, dietaryType, spiceLevel]) // most common triple-filter combo
-  @@index([isQuick, isHealthy])                // health and speed filters
+  @@index([baseType, dietaryType, spiceLevel, isQuick]) // most common triple-filter combo
+  @@index([isHealthy])                // health and speed filters
   @@index([region])                            // regional filtering
 }
 
