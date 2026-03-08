@@ -1,4 +1,4 @@
-// This is your Prisma schema file,
+// This is your Prisma schema file
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
 generator client {
@@ -11,7 +11,101 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
-// ─── NextAuth required models ────────────────────────────────────────────────
+// ─── Enums ───────────────────────────────────────────────────────────────────
+
+enum UserRole {
+  MEMBER
+  SUPER_ADMIN
+}
+
+enum DietaryType {
+  VEG
+  NON_VEG
+  BOTH
+}
+
+enum SpiceTolerance {
+  MILD
+  MEDIUM
+  HOT
+}
+
+enum HealthGoal {
+  BALANCED
+  WEIGHT_LOSS
+  HIGH_PROTEIN
+}
+
+// ─── App Models ──────────────────────────────────────────────────────────────
+
+model User {
+  id            String         @id @default(uuid())
+  email         String         @unique
+  name          String?
+  passwordHash  String?                              // renamed from password
+  avatarUrl     String?                              // renamed from image
+  emailVerified DateTime?
+
+  role           UserRole       @default(MEMBER)
+  dietaryType    DietaryType    @default(BOTH)
+  spiceTolerance SpiceTolerance @default(MEDIUM)
+  healthGoal     HealthGoal     @default(BALANCED)
+  onboardedAt    DateTime?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  accounts Account[]
+  familiesCreated FamilyGroup[]  @relation("FamilyCreator")
+  familyMemberships FamilyMember[]
+}
+
+// ─── Family Enums ─────────────────────────────────────────────────────────────
+
+// Role within a specific family — separate from app-level UserRole
+enum FamilyRole {
+  MEMBER // can view feed, accept/reject broadcasts
+  ADMIN  // can broadcast meals, manage members, invite
+}
+
+// ─── Family Models ────────────────────────────────────────────────────────────
+
+model FamilyGroup {
+  id         String   @id @default(uuid())
+  name       String                          // family display name e.g. "The Mahmood Family"
+  inviteCode String   @unique                // 8-char code others use to join e.g. "GHK-7X2P"
+  createdBy  String                          // userId of whoever created this group
+
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  deletedAt  DateTime?                       // soft delete — archived families stay in DB
+
+  // Relations
+  creator    User            @relation("FamilyCreator", fields: [createdBy], references: [id])
+  members    FamilyMember[]  // all memberships in this family
+}
+
+model FamilyMember {
+  id       String     @id @default(uuid())
+  familyId String                            // which family
+  userId   String                            // which user
+  role     FamilyRole @default(MEMBER)       // their role in THIS family
+
+  joinedAt  DateTime  @default(now())        // when they joined
+
+  // Relations
+  family   FamilyGroup @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  user     User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // One user can only appear once per family — no duplicates
+  @@unique([familyId, userId])
+
+  // Index for fast lookup — "find all families this user is in"
+  @@index([userId])
+}
+
+// ─── NextAuth Required Models (do not modify) ────────────────────────────────
 
 model Account {
   id                String  @id @default(cuid())
@@ -38,25 +132,4 @@ model VerificationToken {
   expires    DateTime
 
   @@unique([identifier, token])
-}
-
-// ─── App models ──────────────────────────────────────────────────────────────
-
-model User {
-  id            String    @id @default(cuid())
-  name          String?
-  email         String    @unique
-  emailVerified DateTime?
-  image         String?
-  password      String?   // null for OAuth-only accounts
-  role          Role      @default(USER)
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-
-  accounts Account[]
-}
-
-enum Role {
-  USER
-  ADMIN
 }
