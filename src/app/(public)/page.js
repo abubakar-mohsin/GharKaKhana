@@ -35,7 +35,7 @@ const FEATURES = [
   {
     icon: '📊',
     title: 'Weekly Insights',
-    desc: 'See patterns in your family's eating habits. Rotate dishes you've over-relied on.',
+    desc: "See patterns in your family's eating habits. Rotate dishes you've over-relied on.",
   },
 ];
 
@@ -52,7 +52,7 @@ const PROBLEMS = [
     emoji: '💸',
     title: 'Ordering out — again',
     urdu: 'باہر کا کھانا',
-    desc: 'When there's no plan, the family falls back on expensive takeout that nobody really wanted.',
+    desc: "When there's no plan, the family falls back on expensive takeout that nobody really wanted.",
   },
   {
     emoji: '🤷',
@@ -66,7 +66,7 @@ const PROBLEMS = [
 
 const STEPS = [
   { step: '1', icon: '📅', title: 'Plan your week', desc: 'Pick meals from the South Asian dish list or add your own. Build a 7-day meal schedule in minutes.' },
-  { step: '2', icon: '📤', title: 'Broadcast to family', desc: 'Share today's menu with one tap. Family members see it on their own devices — no group chat clutter.' },
+  { step: '2', icon: '📤', title: 'Broadcast to family', desc: "Share today's menu with one tap. Family members see it on their own devices — no group chat clutter." },
   { step: '3', icon: '✅', title: 'Log and learn', desc: 'Track what you actually cooked. GharKaKhana shows you patterns and suggests variety over time.' },
 ];
 
