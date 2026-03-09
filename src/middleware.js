@@ -8,10 +8,11 @@ export default auth((req) => {
   const session = req.auth; // populated by NextAuth v5
 
   // ─── Public routes – always allow ─────────────────────────────────────────
-  const publicPaths = ['/', '/login', '/signup', '/forbidden'];
+  const publicPaths = ['/', '/login', '/signup', '/forbidden', '/features', '/how-it-works', '/dishes'];
   const isPublic =
     publicPaths.includes(pathname) ||
-    pathname.startsWith('/api/auth');
+    pathname.startsWith('/api/auth') ||
+    pathname === '/api/dishes';
 
   if (isPublic) return NextResponse.next();
 
