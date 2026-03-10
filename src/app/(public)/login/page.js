@@ -14,6 +14,7 @@ export default function LoginPage() {
   const [pending, setPending] = useState(false);
 
   const justRegistered = searchParams.get('registered') === 'true';
+  const justVerified = searchParams.get('verified') === 'true';
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -56,7 +57,12 @@ export default function LoginPage() {
         {/* Success message after registration */}
         {justRegistered && (
           <p className="mb-4 text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg px-4 py-2">
-            ✅ Account created successfully! Please sign in.
+            ✅ Account created! Please check your email and verify your account before signing in.
+          </p>
+        )}
+        {justVerified && (
+          <p className="mb-4 text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg px-4 py-2">
+            ✅ Email verified successfully! You can now sign in.
           </p>
         )}
 
