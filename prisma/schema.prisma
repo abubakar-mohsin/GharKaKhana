@@ -180,7 +180,9 @@ model User {
   email         String    @unique              // login identifier — must be unique
   name          String?                        // nullable — Google OAuth may not always provide name
   passwordHash  String?                        // null for Google OAuth users — hashed with bcrypt
-  avatarUrl     String?                        // profile picture — Cloudinary URL or Google avatar
+  image         String?                        // required by @auth/prisma-adapter — Google profile picture URL
+                                               // DO NOT REMOVE — PrismaAdapter passes this field on createUser()
+  avatarUrl     String?                        // our app-layer field — copied from image on OAuth sign-in via events.createUser
   emailVerified DateTime? // null until email is verified — NextAuth stores the timestamp not just true/false
 
   // App-level role — determines system-wide permissions

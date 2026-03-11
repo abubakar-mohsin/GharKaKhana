@@ -1,63 +1,70 @@
-// ─── Role constants ─────────────────────────────────────────────────────────
+// src/lib/rbac.js
+// ─────────────────────────────────────────────────────────────────────────────
+// Role-based access control for GharKaKhana.
+// Defines what each role can do and which routes they can access.
+// ─────────────────────────────────────────────────────────────────────────────
 
+// ─── Role Constants ───────────────────────────────────────────────────────────
+// Must match the UserRole enum in schema.prisma exactly
 export const ROLES = {
-  USER: 'USER',
-  ADMIN: 'ADMIN',
-};
+  MEMBER: 'MEMBER',
+  SUPER_ADMIN: 'SUPER_ADMIN',
+}
 
-// ─── Permission map ──────────────────────────────────────────────────────────
-
+// ─── Permission Map ───────────────────────────────────────────────────────────
+// Defines what each role is allowed to do in the app
 export const ROLE_PERMISSIONS = {
-  USER: [
+  MEMBER: [
     'menu:read',
     'logging:read',
     'logging:write',
     'family:read',
+    'family:write',
     'insights:read',
   ],
-  ADMIN: [
+  SUPER_ADMIN: [
     'menu:read',
-    'menu:write',
+    'menu:write',       // can add and edit dishes
     'logging:read',
     'logging:write',
     'family:read',
     'family:write',
     'insights:read',
     'insights:write',
-    'admin:all',
+    'admin:all',        // access to admin panel
   ],
-};
+}
 
-// ─── Route → allowed role map ────────────────────────────────────────────────
-// Key: exact pathname prefix.  Value: array of roles allowed.
-
+// ─── Route → Allowed Roles Map ────────────────────────────────────────────────
+// Controls which roles can access which URL paths
+// Middleware checks this on every request
 export const ROUTE_ROLE_MAP = {
-  '/menu':     [ROLES.USER, ROLES.ADMIN],
-  '/logging':  [ROLES.USER, ROLES.ADMIN],
-  '/family':   [ROLES.USER, ROLES.ADMIN],
-  '/insights': [ROLES.USER, ROLES.ADMIN],
-  '/admin':    [ROLES.ADMIN],
-};
+  '/menu':     [ROLES.MEMBER, ROLES.SUPER_ADMIN],
+  '/logging':  [ROLES.MEMBER, ROLES.SUPER_ADMIN],
+  '/family':   [ROLES.MEMBER, ROLES.SUPER_ADMIN],
+  '/insights': [ROLES.MEMBER, ROLES.SUPER_ADMIN],
+  '/admin':    [ROLES.SUPER_ADMIN],               // only super admin
+}
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 /**
- * Returns true when `userRole` is among the roles allowed for `pathname`.
- * Returns true for routes not listed in ROUTE_ROLE_MAP (not restricted).
+ * Returns true if the userRole is allowed to access the given pathname.
+ * Returns true for routes not listed in ROUTE_ROLE_MAP (unrestricted).
  */
 export function isAuthorized(userRole, pathname) {
   for (const [route, allowedRoles] of Object.entries(ROUTE_ROLE_MAP)) {
     if (pathname.startsWith(route)) {
-      return allowedRoles.includes(userRole);
+      return allowedRoles.includes(userRole)
     }
   }
-  return true; // route not in map → unrestricted
+  return true // route not in map → no restriction
 }
 
 /**
- * Returns true when `userRole` has the requested `permission` string.
+ * Returns true if the userRole has the requested permission string.
  */
 export function hasPermission(userRole, permission) {
-  if (!userRole) return false;
-  return (ROLE_PERMISSIONS[userRole] ?? []).includes(permission);
+  if (!userRole) return false
+  return (ROLE_PERMISSIONS[userRole] ?? []).includes(permission)
 }
