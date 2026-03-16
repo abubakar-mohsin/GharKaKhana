@@ -93,7 +93,7 @@ export default auth(async (req) => {
   const isPublic =
     publicPaths.includes(pathname) ||
     pathname.startsWith('/api/auth') ||
-    pathname === '/api/dishes'
+    pathname.startsWith('/api/dishes')
 
   if (isPublic) return NextResponse.next()
 

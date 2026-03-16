@@ -6,7 +6,6 @@ html,
 body {
   margin: 0;
   padding: 0;
-  font-family: 'Inter', sans-serif;
 }
 
 * {
@@ -33,9 +32,39 @@ button {
 
 /* Urdu/Arabic text support */
 .urdu {
-  font-family: 'Noto Nastaliq Urdu', 'Jameel Noori Nastaleeq', serif;
+  font-family: var(--font-urdu), 'Jameel Noori Nastaleeq', serif;
   direction: rtl;
   line-height: 2;
+}
+
+/* Hide scrollbar for chip rows */
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Shimmer animation for skeletons */
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.shimmer {
+  background: linear-gradient(
+    90deg,
+    #F5F5F4 25%,
+    #E7E5E4 37%,
+    #F5F5F4 63%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
 }
 
 /* Custom scrollbar */

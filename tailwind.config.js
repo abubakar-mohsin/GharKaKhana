@@ -9,6 +9,7 @@ module.exports = {
     extend: {
       fontFamily: {
         sans: ['var(--font-sans)', 'system-ui', 'sans-serif'],
+        urdu: ['var(--font-urdu)', 'Jameel Noori Nastaleeq', 'serif'],
       },
     },
   },
