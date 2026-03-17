@@ -97,8 +97,14 @@ export default auth(async (req) => {
 
   if (isPublic) return NextResponse.next()
 
-  // ─── Unauthenticated — redirect to login ──────────────────────────────────
+  // ─── Unauthenticated — return 401 for API routes, redirect for pages ─────
   if (!session) {
+    if (pathname.startsWith('/api/')) {
+      return NextResponse.json(
+        { error: 'Authentication required' },
+        { status: 401 }
+      )
+    }
     const loginUrl = new URL('/login', req.url)
     loginUrl.searchParams.set('callbackUrl', pathname)
     return NextResponse.redirect(loginUrl)

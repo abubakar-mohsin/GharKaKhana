@@ -460,8 +460,9 @@ model MealLog {
   source MealLogSource @default(PERSONAL) // PERSONAL = logged by user independently
                                           // FAMILY = auto-created when user accepted a broadcast
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime? // soft delete — never hard delete meal logs
 
   // ─── Relations ──────────────────────────────────────────────────────────────
   user             User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
