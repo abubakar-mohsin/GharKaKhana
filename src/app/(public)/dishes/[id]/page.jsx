@@ -1,8 +1,11 @@
 'use client';
 
+import { useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
+import { useSession } from 'next-auth/react';
+import QuickLogModal from '@/components/QuickLogModal';
 
 const SPICE_STYLES = {
   MILD: 'bg-emerald-50 text-emerald-700 border-emerald-200',
@@ -30,6 +33,8 @@ async function fetchDish(id) {
 export default function DishDetailPage() {
   const { id } = useParams();
   const router = useRouter();
+  const [modalOpen, setModalOpen] = useState(false);
+  const { data: session } = useSession();
 
   const { data: dish, isLoading, error } = useQuery({
     queryKey: ['dish', id],
@@ -333,6 +338,24 @@ export default function DishDetailPage() {
           </div>
         )}
       </div>
+
+      {session ? (
+        <button
+          type="button"
+          onClick={() => setModalOpen(true)}
+          className="fixed bottom-4 left-4 right-4 z-30 rounded-2xl px-5 py-4 text-sm font-semibold text-white shadow-lg md:left-1/2 md:right-auto md:w-[calc(100%-2rem)] md:max-w-md md:-translate-x-1/2"
+          style={{ backgroundColor: '#7C3AED' }}
+        >
+          Log This Meal
+        </button>
+      ) : null}
+
+      <QuickLogModal
+        dish={dish}
+        isOpen={modalOpen}
+        onClose={() => setModalOpen(false)}
+        onSuccess={() => setModalOpen(false)}
+      />
     </div>
   );
 }
