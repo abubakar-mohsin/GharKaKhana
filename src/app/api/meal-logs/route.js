@@ -135,12 +135,11 @@ export async function GET(request) {
       take: limit + 1,
       include: {
         dish: {
-          select: {
-            id: true,
-            name: true,
-            imageUrl: true,
-            dietaryType: true,
-            spiceLevel: true,
+          include: {
+            nutrition: true,
+            tags: {
+              select: { tag: true },
+            },
           },
         },
       },

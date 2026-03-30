@@ -354,7 +354,10 @@ export default function DishDetailPage() {
         dish={dish}
         isOpen={modalOpen}
         onClose={() => setModalOpen(false)}
-        onSuccess={() => setModalOpen(false)}
+        onSuccess={() => {
+          setModalOpen(false)
+          router.push('/logging')
+        }}
       />
     </div>
   );

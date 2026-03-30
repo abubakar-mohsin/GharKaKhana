@@ -12,6 +12,15 @@ import { Resend } from 'resend'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
 
+function escapeHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;')
+}
+
 // The "from" address for all emails
 // During development Resend allows onboarding@resend.dev for free
 // In production you will replace this with your own domain e.g. no-reply@gharkhana.com
@@ -36,7 +45,7 @@ export async function sendVerificationEmail(email, name, token) {
     subject: 'Verify your GharKaKhana account',
     html: `
       <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto;">
-        <h2 style="color: #b45309;">Welcome to GharKaKhana, ${name}!</h2>
+        <h2 style="color: #b45309;">Welcome to GharKaKhana, ${escapeHtml(name)}!</h2>
         <p>Thank you for registering. Please verify your email address to activate your account.</p>
         <a
           href="${verifyUrl}"

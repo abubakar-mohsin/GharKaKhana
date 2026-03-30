@@ -8,8 +8,9 @@
 //   3. Hashes the password using bcrypt
 //   4. Creates the user in the database
 //   5. Creates a verification token
-//   6. Sends the verification email via Resend
-//   7. Returns success — user must verify email before logging in
+//   6. In development with SKIP_EMAIL_VERIFICATION=true → auto-verify and return
+//   7. In production → sends the verification email via Resend
+//   8. Returns success — user must verify email before logging in
 //
 // POST /api/auth/register
 // ─────────────────────────────────────────────────────────────────────────────
@@ -30,7 +31,6 @@ export async function POST(request) {
     const validated = registerSchema.safeParse(body)
 
     if (!validated.success) {
-      // Return all validation errors so the frontend can show them
       return NextResponse.json(
         {
           error: 'Validation failed',
@@ -41,7 +41,6 @@ export async function POST(request) {
     }
 
     const { name, email, password } = validated.data
-    // Note: confirmPassword is validated by Zod but not needed here
 
     // ── Step 2: Check if email already exists ────────────────────────────────
     const existingUser = await prisma.user.findUnique({
@@ -49,55 +48,94 @@ export async function POST(request) {
     })
 
     if (existingUser) {
-      // Do not reveal whether an email is registered — security best practice
-      // We return the same message whether email exists or not
       return NextResponse.json(
-        { error: 'An account with this email already exists' },
-        { status: 409 }
+        { message: 'If this email is available, you will receive a verification link shortly.' },
+        { status: 200 }
       )
     }
 
     // ── Step 3: Hash the password ────────────────────────────────────────────
-    // bcrypt cost factor 12 — good balance of security and speed
-    // Higher = slower to hash = harder for attackers to brute force
     const passwordHash = await bcrypt.hash(password, 12)
 
     // ── Step 4: Create the user ──────────────────────────────────────────────
-    const user = await prisma.user.create({
-      data: {
-        name,
-        email,
-        passwordHash,
-        // emailVerified is null by default — user cannot log in until verified
-        // role defaults to MEMBER — set in schema
-        // dietaryType, spiceTolerance, healthGoal all have schema defaults
-      },
-    })
+    let user
+    try {
+      user = await prisma.user.create({
+        data: {
+          name,
+          email,
+          passwordHash,
+        },
+      })
+    } catch (dbError) {
+      if (dbError.code === 'P2002') {
+        return NextResponse.json(
+          { message: 'If this email is available, you will receive a verification link shortly.' },
+          { status: 200 }
+        )
+      }
+      throw dbError
+    }
 
     // ── Step 5: Create verification token ───────────────────────────────────
-    // This token is stored in the VerificationToken table (NextAuth model)
-    // It expires in 24 hours
     const token = uuidv4()
-    const expires = new Date(Date.now() + 24 * 60 * 60 * 1000) // 24 hours from now
+    const expires = new Date(Date.now() + 24 * 60 * 60 * 1000)
 
     await prisma.verificationToken.create({
       data: {
-        identifier: email, // NextAuth uses identifier + token as composite key
+        identifier: email,
         token,
         expires,
       },
     })
 
-    // ── Step 6: Send verification email ─────────────────────────────────────
-    await sendVerificationEmail(email, name, token)
+    // ── Step 6: Development bypass ───────────────────────────────────────────
+    // Resend free tier only sends to one verified email address.
+    // In development with SKIP_EMAIL_VERIFICATION=true we auto-verify
+    // the user immediately so you can test with any email address.
+    // This block NEVER runs in production — NODE_ENV is always 'production'.
+    if (
+      process.env.NODE_ENV === 'development' &&
+      process.env.SKIP_EMAIL_VERIFICATION === 'true'
+    ) {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { emailVerified: new Date() },
+      })
 
-    // ── Step 7: Return success ───────────────────────────────────────────────
-    // Never return the password hash or sensitive fields
+      await prisma.verificationToken.delete({
+        where: { token },
+      }).catch(() => {})
+
+      return NextResponse.json(
+        { message: 'Account created. You can sign in immediately (development mode).' },
+        { status: 201 }
+      )
+    }
+
+    // ── Step 7: Send verification email (production) ─────────────────────────
+    try {
+      await sendVerificationEmail(email, name, token)
+    } catch (emailError) {
+      console.error('Email send failed, cleaning up:', emailError)
+
+      await prisma.verificationToken.delete({
+        where: { token },
+      }).catch(() => {})
+
+      await prisma.user.delete({
+        where: { id: user.id },
+      }).catch(() => {})
+
+      return NextResponse.json(
+        { error: 'We could not send your verification email. Please try again in a few minutes.' },
+        { status: 500 }
+      )
+    }
+
+    // ── Step 8: Return success ───────────────────────────────────────────────
     return NextResponse.json(
-      {
-        message: 'Account created. Please check your email to verify your account.',
-        userId: user.id,
-      },
+      { message: 'Account created. Please check your email to verify your account.' },
       { status: 201 }
     )
 

@@ -1,13 +1,14 @@
 'use client';
 
 import { useState } from 'react';
-import { signIn } from 'next-auth/react';
+import { signIn, signOut, useSession } from 'next-auth/react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 
 export default function LoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { data: session, status } = useSession();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -15,6 +16,8 @@ export default function LoginPage() {
 
   const justRegistered = searchParams.get('registered') === 'true';
   const justVerified = searchParams.get('verified') === 'true';
+  const authError = searchParams.get('error')
+  const tokenError = searchParams.get('error')
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -29,7 +32,20 @@ export default function LoginPage() {
       });
 
       if (result?.error) {
-        setError('Invalid email or password. Please try again.');
+        switch (result.error) {
+          case 'CallbackRouteError':
+            // Check the actual cause from the URL or use a generic check
+            setError('Please verify your email before logging in. Check your inbox for the verification link.')
+            break
+          case 'OAuthAccountNotLinked':
+            setError('This email is already registered. Please sign in with your email and password instead.')
+            break
+          case 'AccessDenied':
+            setError('Access denied. Your account may have been deactivated.')
+            break
+          default:
+            setError('Invalid email or password. Please try again.')
+        }
       } else {
         const callbackUrl = searchParams.get('callbackUrl') || '/menu';
         router.push(callbackUrl);
@@ -37,6 +53,24 @@ export default function LoginPage() {
     } catch {
       setError('Something went wrong. Please try again.');
     } finally {
+      setPending(false);
+    }
+  };
+
+  const handleGoogleSignIn = async () => {
+    setError('');
+    setPending(true);
+
+    try {
+      if (status === 'authenticated') {
+        // Prevent linking a new Google account to an existing session.
+        await signOut({ redirect: false });
+      }
+
+      const callbackUrl = searchParams.get('callbackUrl') || '/menu';
+      await signIn('google', { callbackUrl });
+    } catch {
+      setError('Something went wrong. Please try again.');
       setPending(false);
     }
   };
@@ -54,6 +88,24 @@ export default function LoginPage() {
           </p>
         </div>
 
+        {status === 'authenticated' && (
+          <div className="mb-4 text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-4 py-2 flex items-center justify-between gap-3">
+            <span>
+              Signed in as{' '}
+              <strong className="font-semibold">
+                {session?.user?.name ?? session?.user?.email}
+              </strong>
+            </span>
+            <button
+              type="button"
+              onClick={() => signOut({ callbackUrl: '/login' })}
+              className="text-amber-900 font-medium hover:underline"
+            >
+              Sign out
+            </button>
+          </div>
+        )}
+
         {/* Success message after registration */}
         {justRegistered && (
           <p className="mb-4 text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg px-4 py-2">
@@ -63,6 +115,30 @@ export default function LoginPage() {
         {justVerified && (
           <p className="mb-4 text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg px-4 py-2">
             ✅ Email verified successfully! You can now sign in.
+          </p>
+        )}
+
+        {authError === 'OAuthAccountNotLinked' && (
+          <p className="mb-4 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-2">
+            This Google account is linked to a different account. 
+            Please sign in with your email and password.
+          </p>
+        )}
+        {tokenError === 'token-expired' && (
+          <p className="mb-4 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-2">
+            ⏱ Your verification link has expired. 
+            Please sign up again to get a new link.
+          </p>
+        )}
+        {tokenError === 'invalid-token' && (
+          <p className="mb-4 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-2">
+            ❌ This verification link is invalid or has already been used.
+            Please sign up again if you need a new link.
+          </p>
+        )}
+        {tokenError === 'server-error' && (
+          <p className="mb-4 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-2">
+            Something went wrong. Please try again later.
           </p>
         )}
 
@@ -125,7 +201,7 @@ export default function LoginPage() {
 
         {/* Google Sign In */}
         <button
-          onClick={() => signIn('google', { callbackUrl: '/menu' })}
+          onClick={handleGoogleSignIn}
           className="w-full flex items-center justify-center gap-2 border border-gray-300 rounded-lg py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
         >
           <svg className="w-4 h-4" viewBox="0 0 24 24">

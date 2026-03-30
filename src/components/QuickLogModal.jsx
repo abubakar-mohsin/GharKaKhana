@@ -76,6 +76,8 @@ function Dots() {
 
 /* ═══════════════════════════════════════════════════════════ */
 export default function QuickLogModal({ dish, isOpen, onClose, onSuccess }) {
+  const [mode,      setMode]      = useState('catalog')
+  const [customMealName, setCustomMealName] = useState('')
   const [servings,  setServings]  = useState(1)
   const [mealTime,  setMealTime]  = useState(getMealTimeFromHour())
   const [notes,     setNotes]     = useState('')
@@ -101,6 +103,8 @@ export default function QuickLogModal({ dish, isOpen, onClose, onSuccess }) {
 
   useEffect(() => {
     if (phase === 'closed') {
+      setMode('catalog')
+      setCustomMealName('')
       setServings(1)
       setMealTime(getMealTimeFromHour())
       setNotes('')
@@ -127,7 +131,9 @@ export default function QuickLogModal({ dish, isOpen, onClose, onSuccess }) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          dishId: dish.id,
+          ...(mode === 'catalog'
+            ? { dishId: dish.id }
+            : { customMealName: customMealName.trim() }),
           logDate: getLocalDateString(),
           mealTime, servings,
           notes: notes.trim() || undefined,
@@ -149,12 +155,14 @@ export default function QuickLogModal({ dish, isOpen, onClose, onSuccess }) {
 
   const isExiting = phase === 'exiting'
   const isSuccess = phase === 'success'
+  const isCustomMode = mode === 'custom'
 
-  const totalKcal = Math.round((dish.calories || 0) * servings)
-  const totalProt = Math.round((dish.protein  || 0) * servings)
-  const totalCarb = Math.round((dish.carbs    || 0) * servings)
-  const totalFat  = Math.round((dish.fat      || 0) * servings)
+  const totalKcal = Math.round((dish?.nutrition?.calories || 0) * servings)
+  const totalProt = Math.round((dish?.nutrition?.protein  || 0) * servings)
+  const totalCarb = Math.round((dish?.nutrition?.carbohydrates || 0) * servings)
+  const totalFat  = Math.round((dish?.nutrition?.fat      || 0) * servings)
   const mealLabel = MEAL_OPTIONS.find(m => m.value === mealTime)?.label ?? mealTime
+  const successLabel = isCustomMode ? customMealName.trim() : dish.name
 
   return (
     <>
@@ -222,8 +230,8 @@ export default function QuickLogModal({ dish, isOpen, onClose, onSuccess }) {
                 <h2 style={{
                   margin: 0, fontSize: 20, fontWeight: 800, color: '#1C1110',
                   fontFamily: '"Playfair Display", Georgia, serif', lineHeight: 1.2,
-                }}>{dish.name}</h2>
-                {dish.nameUrdu && (
+                }}>{isCustomMode ? 'Custom Meal' : dish.name}</h2>
+                {!isCustomMode && dish.nameUrdu && (
                   <p style={{ fontSize: 13, color: '#A8A29E', direction: 'rtl', lineHeight: 1.8, margin: '2px 0 0' }}>
                     {dish.nameUrdu}
                   </p>
@@ -269,6 +277,80 @@ export default function QuickLogModal({ dish, isOpen, onClose, onSuccess }) {
               transform:  isSuccess ? 'scale(0.96)' : 'scale(1)',
               pointerEvents: isSuccess ? 'none' : 'auto',
             }}>
+
+              <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+                {[
+                  { label: 'From Menu', value: 'catalog' },
+                  { label: 'Custom Meal', value: 'custom' },
+                ].map((option) => {
+                  const selected = mode === option.value
+                  return (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => setMode(option.value)}
+                      style={{
+                        flex: 1,
+                        height: 40,
+                        borderRadius: 999,
+                        border: `1.5px solid ${selected ? '#7C3AED' : '#E7E5E4'}`,
+                        background: selected ? '#7C3AED' : '#F5F5F4',
+                        color: selected ? '#fff' : '#57534E',
+                        fontSize: 12,
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        transition: 'all 0.18s ease',
+                      }}
+                    >
+                      {option.label}
+                    </button>
+                  )
+                })}
+              </div>
+
+              {mode === 'catalog' ? (
+                <div style={{ marginBottom: 16 }}>
+                  <span style={secLblStyle}>From menu</span>
+                  <input
+                    type="text"
+                    value={dish.name}
+                    readOnly
+                    style={{
+                      width: '100%', height: 42, borderRadius: 13,
+                      border: '1.5px solid #E7E5E4', background: '#F5F0EB',
+                      padding: '0 14px', fontSize: 13, color: '#44403C', outline: 'none',
+                    }}
+                  />
+                </div>
+              ) : (
+                <div style={{ marginBottom: 16 }}>
+                  <span style={secLblStyle}>Custom meal</span>
+                  <input
+                    type="text"
+                    value={customMealName}
+                    onChange={e => setCustomMealName(e.target.value)}
+                    placeholder="e.g. Mama's special halwa, office canteen biryani"
+                    required={mode === 'custom'}
+                    style={{
+                      width: '100%', height: 42, borderRadius: 13,
+                      border: '1.5px solid #FDBA74', background: '#FFF7ED',
+                      padding: '0 14px', fontSize: 13, color: '#1C1110', outline: 'none',
+                    }}
+                  />
+                  <div style={{
+                    marginTop: 10,
+                    borderRadius: 12,
+                    border: '1px solid #FDBA74',
+                    background: '#FFF7ED',
+                    color: '#C2410C',
+                    fontSize: 12,
+                    fontWeight: 600,
+                    padding: '10px 12px',
+                  }}>
+                    Custom meals won't have nutrition data
+                  </div>
+                </div>
+              )}
 
               {/* Servings */}
               <span style={secLblStyle}>Servings</span>
@@ -392,7 +474,7 @@ export default function QuickLogModal({ dish, isOpen, onClose, onSuccess }) {
                 fontSize: 12, color: '#78716C', textAlign: 'center',
                 lineHeight: 1.6, margin: '0 0 16px', maxWidth: 220,
               }}>
-                {dish.name} · {servings} serving{servings !== 1 ? 's' : ''} · {mealLabel}
+                {successLabel} · {servings} serving{servings !== 1 ? 's' : ''} · {mealLabel}
               </p>
 
               <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap', justifyContent: 'center', marginBottom: 20 }}>

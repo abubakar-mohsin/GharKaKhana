@@ -26,30 +26,37 @@ const RATE_LIMIT_WINDOW = 60    // per 60 seconds
 const RATE_LIMIT_BLOCK = 900    // block for 15 minutes after too many attempts
 
 async function rateLimit(ip, endpoint) {
-  const key = `rate:${endpoint}:${ip}`
-  const blockKey = `blocked:${endpoint}:${ip}`
+  try {
+    const key = `rate:${endpoint}:${ip}`
+    const blockKey = `blocked:${endpoint}:${ip}`
 
-  // Check if this IP is currently blocked
-  const isBlocked = await redis.get(blockKey)
-  if (isBlocked) {
-    return { limited: true, reason: 'blocked' }
+    // Check if this IP is currently blocked
+    const isBlocked = await redis.get(blockKey)
+    if (isBlocked) {
+      return { limited: true, reason: 'blocked' }
+    }
+
+    // Increment the request counter
+    const count = await redis.incr(key)
+
+    // First request — set expiry window
+    if (count === 1) {
+      await redis.expire(key, RATE_LIMIT_WINDOW)
+    }
+
+    // Too many requests — block this IP
+    if (count > RATE_LIMIT_REQUESTS) {
+      await redis.set(blockKey, '1', { ex: RATE_LIMIT_BLOCK })
+      return { limited: true, reason: 'too-many-attempts' }
+    }
+
+    return { limited: false }
+  } catch (redisError) {
+    // If Redis is down, fail open — allow the request through
+    // This prevents Redis outage from locking all users out
+    console.error('Rate limit Redis error:', redisError)
+    return { limited: false }
   }
-
-  // Increment the request counter
-  const count = await redis.incr(key)
-
-  // First request — set expiry window
-  if (count === 1) {
-    await redis.expire(key, RATE_LIMIT_WINDOW)
-  }
-
-  // Too many requests — block this IP
-  if (count > RATE_LIMIT_REQUESTS) {
-    await redis.set(blockKey, '1', { ex: RATE_LIMIT_BLOCK })
-    return { limited: true, reason: 'too-many-attempts' }
-  }
-
-  return { limited: false }
 }
 
 export default auth(async (req) => {

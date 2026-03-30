@@ -16,7 +16,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
   adapter: PrismaAdapter(prisma),
 
-  session: { strategy: 'jwt' },
+  session: {
+    strategy: 'jwt',
+    maxAge: 30 * 24 * 60 * 60, // 30 days
+  },
 
   pages: {
     signIn: '/login',
@@ -54,9 +57,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           throw new Error('Email and password are required')
         }
 
-        const user = await prisma.user.findUnique({
+        const normalizedEmail = credentials.email.toLowerCase().trim()
+
+        const user = await prisma.user.findFirst({
           where: {
-            email: credentials.email,
+            email: normalizedEmail,
             deletedAt: null,
           },
         })
@@ -84,6 +89,28 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   ],
 
   callbacks: {
+
+    async signIn({ user, account }) {
+      if (!user.email) return false
+
+      const dbUser = await prisma.user.findUnique({
+        where: { email: user.email.toLowerCase() }
+      })
+
+      // Block soft deleted users from any provider
+      if (dbUser?.deletedAt) return false
+
+      // Mark Google users as email verified automatically
+      // Google already verified their email
+      if (account?.provider === 'google' && dbUser && !dbUser.emailVerified) {
+        await prisma.user.update({
+          where: { id: dbUser.id },
+          data: { emailVerified: new Date() }
+        })
+      }
+
+      return true
+    },
 
     async jwt({ token, user }) {
       if (user) {
